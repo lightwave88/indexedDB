@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>indexedDB_t2</title>
+    <meta name="description" content="DESCRIPTION">
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+        }
+
+        .action_container {
+            width: 80%;
+            margin: 0 auto;
+        }
+
+        .action_container::after {
+            content: '';
+            height: 0;
+            clear: both;
+            display: block;
+        }
+
+        .action_container> .action_item {
+            float: left;
+            width: 50%;
+        }
+
+        form {
+            padding: 20px 10px;
+        }
+    </style>
+    <!-- <script src="../../js_script/jquery-1.12.4.js"></script> -->
+    <script src="./data/taipeiHotelData.js"></script>
+    <script src="./js/indexedDBA_beta_1.js"></script>
+    <script src="./js/test_3.js"></script>
+    <!-- <script src="../../js_script/WhilstParallelLimit.js"></script> -->
+    <script>
+        // 創建資料庫
+        // createDatabase('x', 'hotel');
+
+
+        /* ================================================================== */
+        function createDatabase(dbName, tableName) {
+            debugger;
+
+            var options = {
+                'dbName': dbName,
+                'tableName': tableName,
+                'upgradeneeded': event_upgradeneeded,
+                'success': event_success,
+                'error': event_error
+            };
+            $indexedDBA.createDatabase(options);
+            /* -------------------------------------------- */
+
+            function event_upgradeneeded(e) {
+                /* 建立表格結構 */
+                // console.dir(e);
+
+                var store, db = e.target.result;
+
+                // store
+                store = db.createObjectStore(tableName, {
+                    keyPath: 'id',
+                    autoIncrement: true
+                });
+                // 創建(index)
+                store.createIndex('_idIndex', '_id', {
+                    unique: false
+                });
+
+                store.createIndex('adressIndex', 'address', {
+                    unique: false
+                });
+                /* ---------------------------------- */
+                // store = db.createObjectStore('x_z');
+            };
+            /* -------------------------------------------- */
+            function event_success(e) {
+                addData(tableName);
+            };
+            /* -------------------------------------------- */
+            function event_error(e) {
+                alert('createDatabase error');
+            }
+        };
+        /* ================================================================== */
+        // 新增('x_y')資料
+        function addData(tableName) {
+            debugger;
+
+            if ($indexedDBA.db) {
+
+                var transaction = $indexedDBA.db.transaction([tableName], 'readwrite');
+                var store = transaction.objectStore(tableName);
+
+                transaction.oncomplete = function(e) {
+                    // console.dir(e);
+                    alert('資料新增成功');
+                }
+
+                /* -------------------------------------------- */
+                // 從(data_array)把資料拷貝進資料庫
+                var cloneData = (typeof TaipeiHotelData != 'undefined') ? [].slice.call(TaipeiHotelData.result.results) : [];
+
+                for (var i = 0; i < cloneData.length; i++) {
+                    var data = cloneData[i];
+
+                    var rq = store.put({
+                        '_id': data._id,
+                        'address': data.address
+                    });
+                }
+            }
+        };
+        /* ================================================================== */
+        /**
+         * 查詢('x_y')所有
+         *
+         * @return {[type]} [description]
+         */
+        function fetchByPK(obj, e) {
+            e.preventDefault();
+
+            debugger;
+
+            var form = obj.form;
+            var tableName = form.tableName.value;
+            var id = Number(form.id.value);
+
+            console.log('要調的資料庫:', $indexedDBA.dbName, tableName);
+
+            if (!$indexedDBA.db) {
+                alert('尚未連接資料庫');
+            } else {
+                var tx = $indexedDBA.db.transaction([tableName], 'readonly');
+                var store = tx.objectStore(tableName);
+
+                var rq = store.get(id);
+                /* ---------------------------------- */
+                rq.onsuccess = function() {
+                    var db = this.result;
+                    var msg_1 = document.querySelector('#msg_1');
+
+                    if (db == null) {
+                        msg_1.innerHTML = 'key(' + id + ') no data';
+                    } else {
+                        msg_1.innerHTML = JSON.stringify(db);
+                    }
+                }
+            }
+        };
+        /* ================================================================== */
+        /**
+         * 查詢by(_id)
+         *
+         * @return {[type]} [description]
+         */
+        function fetchBy_idIndex(obj, e) {
+            e.preventDefault();
+
+            debugger;
+
+            var form = obj.form;
+            var tableName = form.tableName.value;
+            var id = form.id.value;
+
+            console.log('要調的資料庫:', $indexedDBA.dbName, tableName);
+
+            if (!$indexedDBA.db) {
+                alert('尚未連接資料庫');
+            } else {
+                var tx = $indexedDBA.db.transaction([tableName], 'readonly');
+                var store = tx.objectStore(tableName);
+
+                var idx = store.index('_idIndex');
+                var rq = idx.get(id);
+                /* ---------------------------------- */
+                rq.onsuccess = function() {
+                    var db = this.result;
+                    var msg_1 = document.querySelector('#msg_1');
+
+                    if (db == null) {
+                        msg_1.innerHTML = 'key(' + id + ') no data';
+                    } else {
+                        msg_1.innerHTML = JSON.stringify(db);
+                    }
+                }
+            }
+
+        };
+        /* ================================================================== */
+        function showJSONData() {
+            var cloneData = (typeof data_array != 'undefined') ?
+                Array.prototype.slice.apply(data_array.result.results, [0]) : [];
+
+            var result = '';
+            for (var i = 0; i < cloneData.length; i++) {
+                result += JSON.stringify(cloneData[i]) + '<hr />';
+            }
+
+            document.querySelector('#msg_1').innerHTML = result;
+        };
+        /* ================================================================== */
+        /**
+         * 調出所有資料，排序依照(pk)
+         *
+         */
+        function fetchAllData_orderBy_pk(obj, e) {
+            e.preventDefault();
+            debugger;
+
+            var form = obj.form;
+            var tableName = form.tableName.value;
+            var sortOption = form.sort_1.value;
+            var sort;
+
+            console.log('要調的資料庫:', $indexedDBA.dbName, tableName);
+
+            switch (sortOption) {
+                case 'desc':
+                    sort = 'prev';
+                    break;
+                default:
+                    sort = 'next';
+                    break;
+            }
+
+            if (!$indexedDBA.db) {
+                alert('尚未連接資料庫');
+            } else {
+
+                var print = '';
+
+                var store;
+                if (!(store = $indexedDBA.transaction(tableName, 'readonly'))) {
+                    alert('交易失敗');
+                } else {
+                    /* -------------------------------------------- */
+                    // condition
+                    // var range = $indexedDBA.IDBKeyRange.lowerBound(0);
+
+                    //condition
+                    var rq = store.openCursor(null, sort);
+
+                    /* -------------------------------------------- */
+                    rq.onerror = function() {
+                        alert('調出資料錯誤');
+                    }
+
+                    rq.onsuccess = function() {
+
+                        var db = this.result;
+                        if (db != null) {
+
+                            // console.dir(idb);
+                            print += JSON.stringify(db.value) + '<hr>';
+
+                            db.continue();
+                        } else {
+                            var msg_1 = document.querySelector('#msg_1');
+                            msg_1.innerHTML = print;
+                        }
+                    }
+                }
+            }
+        };
+        /* ================================================================== */
+
+        /**
+         * 調出所有資料，排序依照(adress)
+         *
+         */
+        function fetchAllData_orderBy_address(obj, e) {
+            e.preventDefault();
+            debugger;
+
+            var form = obj.form;
+            var sortOption = form.sort_1.value;
+            // var index = form.index.value;
+            var tableName = form.tableName.value;
+            var sort;
+
+            switch (sortOption) {
+                case 'desc':
+                    sort = 'prev';
+                    break;
+                default:
+                    sort = 'next';
+                    break;
+            }
+
+            if (!$indexedDBA.db) {
+                alert('尚未連接資料庫');
+            } else {
+                var print = '';
+
+                // var ts = $indexedDBA.db.transaction([tableName], 'readonly');
+                // var store = ts.objectStore(tableName);
+
+                var store;
+                if (!(store = $indexedDBA.transaction(tableName, 'readonly'))) {
+                    alert('查詢有問題');
+                } else {
+                    var index = store.index('adressIndex');
+                    var rq = index.openCursor(null, sort);
+
+                    rq.onerror = function() {
+                        alert('調出資料錯誤');
+                    }
+
+                    rq.onsuccess = function() {
+                        var db = this.result;
+                        if (db != null) {
+
+                            // console.dir(idb);
+                            print += JSON.stringify(db.value) + '<hr>';
+
+                            db.continue();
+                        } else {
+                            var msg_1 = document.querySelector('#msg_1');
+                            msg_1.innerHTML = print;
+                        }
+                    }
+                }
+            }
+        };
+        /* ================================================================== */
+        function find_address(obj, e) {
+            e.preventDefault();
+            debugger;
+
+
+            var form = obj.form;
+            var tableName = form.tableName.value;
+            var keyWord = form.keyWord.value;
+
+            if (!$indexedDBA.db) {
+                alert('尚未連接資料庫');
+            } else {
+                var print = '';
+
+                var ts = $indexedDBA.db.transaction(tableName);
+                var store = ts.objectStore(tableName);
+                var index = store.index('adressIndex');
+
+                var range = $indexedDBA.IDBKeyRange.only(keyWord);
+
+                var rq = index.openCursor(range, 'next');
+
+                rq.onerror = function() {
+                    alert('調出資料錯誤');
+                }
+
+                rq.onsuccess = function() {
+                    debugger;
+                    var db = this.result;
+                    var msg_1 = document.querySelector('#msg_1');
+
+                    if (db != null) {
+
+                        // console.dir(idb);
+                        print += db.toString() + '<hr>';
+                        db.continue();
+                    } else {
+                        msg_1.innerHTML = print;
+                    }
+                }
+
+            }
+        };
+        /* ================================================================== */
+        function callAddData(obj, e) {
+            e.preventDefault();
+
+            var form = obj.form;
+            var tableName = form.tableName.value;
+
+            addData(tableName);
+        };
+        /* ================================================================== */
+        function connectDB(obj, e) {
+            e.preventDefault();
+
+            var form = obj.form;
+            var dbName = form.dbName.value;
+
+            $indexedDBA.openDatabase({
+                'dbName': dbName
+            });
+        };
+        /* ================================================================== */
+        function callCreateDatabase(obj, e) {
+            debugger;
+
+            e.preventDefault();
+
+            var form = obj.form;
+            var dbName = form.dbName.value;
+            var tableName = form.tableName.value;
+
+            createDatabase(dbName, tableName);
+        };
+    </script>
+</head>
+
+<body>
+    <div class="action_container">
+        <div class="action_item">
+            <form>
+                <h4>連結資料庫</h4>
+                <p>
+                    dbName:<input type="text" name="dbName" />
+                </p>
+                <p>
+                    <button onclick="connectDB(this, event);">connectDB</button>
+                </p>
+            </form>
+            <hr />
+            <form>
+                <h4>增加資料到資料庫</h4>
+                <p>
+                    tableName:<input type="text" name="tableName" />
+                </p>
+                <p>
+                    <button onclick="callAddData(this, event);">adData</button>
+                </p>
+            </form>
+            <form>
+                <h4>新增資料到資料庫</h4>
+                <p>
+                    dbName:<input type="text" name="dbName" />
+                </p>
+                <p>
+                    tableName:<input type="text" name="tableName" />
+                </p>
+                <p>
+                    <button onclick="callCreateDatabase(this, event);">adData</button>
+                </p>
+            </form>
+        </div>
+        <div class="action_item">
+            <p>
+                <button onclick="showJSONData()">showJSONData</button>
+            </p>
+            <hr />
+            <form>
+                要查詢的表:
+                <input type="text" name="tableName" /> 要查詢的(id):
+                <input type="text" name="id" />
+                <button onclick="fetchByPK(this, event);">fetchByPK</button>
+            </form>
+            <hr />
+            <form>
+                要查詢的表:
+                <input type="text" name="tableName" /> 要查詢的(id):
+                <input type="text" name="id" />
+                <button onclick="fetchBy_idIndex(this, event);">fetchBy_idIndex</button>
+            </form>
+            <hr />
+            <form>
+                要查詢的表:
+                <input type="text" name="tableName" /> ASC:
+                <input type="radio" name="sort_1" value="asc" checked="checked"> DESC:
+                <input type="radio" name="sort_1" value="desc">
+                <button onclick="fetchAllData_orderBy_pk(this, event);">根據(pk)查詢所有</button>
+            </form>
+            <hr />
+            <form>
+                要查詢的表:
+                <input type="text" name="tableName" /> ASC:
+                <input type="radio" name="sort_1" value="asc" checked="checked"> DESC:
+                <input type="radio" name="sort_1" value="desc">
+                <button onclick="fetchAllData_orderBy_address(this, event);">根據(地址)查詢所有</button>
+            </form>
+            <hr />
+            <form>
+                要查詢的表:
+                <input type="text" name="tableName" /> 要查詢的(keyWord)
+                <input type="text" name="keyWord" />
+                <button onclick="find_address(this, event);">查詢(地址)</button>
+            </form>
+        </div>
+
+    </div>
+    <!-- ---------------------------------------- -->
+    <hr />
+    <div id="msg_1">
+
+    </div>
+</body>
+
+</html>

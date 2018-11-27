@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>功能模組測試</title>
+    <meta name="description" content="DESCRIPTION">
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+        }
+
+        .action_container {
+            width: 80%;
+            margin: 0 auto;
+        }
+
+        .action_container::after {
+            content: '';
+            height: 0;
+            clear: both;
+            display: block;
+        }
+
+        .action_container> .action_item {
+            float: left;
+            width: 50%;
+        }
+
+        form {
+            padding: 20px 10px;
+        }
+    </style>
+    <!-- <script src="data/data_2a.js"></script> -->
+    <script src="./data/taipeiHotelData.js"></script>
+    <script src="./js/indexedDBA_beta_1.js"></script>
+    <!-- <script src="./js/test_4.js"></script> -->
+    <script>
+        // 創建資料庫
+        var dbName = 'hotel';
+        var tableName = 'hotelData';
+        createDatabase(dbName, tableName);
+
+
+        /* ================================================================== */
+        function createDatabase(dbName, tableName) {
+            // debugger;
+
+            var options = {
+                'dbName': dbName,
+                'tableName': tableName,
+                'upgradeneeded': event_upgradeneeded,
+                'success': event_success,
+                'error': event_error
+            };
+            $indexedDBA.createDatabase(options);
+            /* -------------------------------------------- */
+
+            function event_upgradeneeded(e) {
+                /* 建立表格結構 */
+                // console.dir(e);
+
+                var store, db = e.target.result;
+
+                // store
+                store = db.createObjectStore(tableName, {
+                    keyPath: 'id',
+                    autoIncrement: true
+                });
+                // 創建(index)
+                store.createIndex('_idIndex', '_id', {
+                    unique: false
+                });
+
+                store.createIndex('adressIndex', 'address', {
+                    unique: false
+                });
+                /* ---------------------------------- */
+                // store = db.createObjectStore('x_z');
+            };
+            /* -------------------------------------------- */
+            function event_success(e) {
+                addData(tableName);
+            };
+            /* -------------------------------------------- */
+            function event_error(e) {
+                alert('createDatabase error');
+            }
+        };
+        /* ================================================================== */
+        // 新增資料
+        function addData(tableName) {
+            debugger;
+
+            if ($indexedDBA.db) {
+                var data = $indexedDBA.transaction([tableName], 'readwrite');
+
+                if (!data) {
+                    alert('交易有問題');
+                }
+                var transaction = data.transaction;
+                var store = data.objectStore;
+
+                transaction.oncomplete = function(e) {
+                    // console.dir(e);
+                    alert('資料新增成功');
+                };
+
+                /* -------------------------------------------- */
+                // 從(data_array)把資料拷貝進資料庫
+                var cloneData = (typeof TaipeiHotelData != 'undefined') ? [].slice.call(TaipeiHotelData.result.results) : [];
+
+                for (var i = 0; i < cloneData.length; i++) {
+                    var data = cloneData[i];
+
+                    var rq = store.put({
+                        '_id': data._id,
+                        'address': data.address
+                    });
+                }
+            }
+        };
+        /* ================================================================== */
+        /**
+         * 查詢資料，依據輸入的(id)去查詢
+         *
+         */
+        function findByPK(obj, e) {
+            e.preventDefault();
+
+            debugger;
+
+            var form = obj.form;
+            var id = (form.id.value.length > 0) ? Number(form.id.value) : null;
+
+            if (!$indexedDBA.db) {
+                alert('尚未連接資料庫');
+            } else {
+                var options = {
+                    'table': tableName,
+                    'final': e_final,
+                    'range': {
+                        'only': id
+                    }
+                }
+
+                function e_final(map, e) {
+                    var htmlContent = '';
+                    map.forEach(function(value, key) {
+                        htmlContent += '<p>(' + key + ')' + JSON.stringify(value) + '</p>';
+                    });
+
+                    var msg_1 = document.querySelector('#msg_1');
+                    msg_1.innerHTML = htmlContent;
+                }
+                $indexedDBA.queryMap(options);
+            }
+        };
+
+        /* ================================================================== */
+        /**
+         * 調出所有資料，排序依照(pk)
+         *
+         */
+        function showAllData_orderBy_pk(obj, e) {
+            e.preventDefault();
+            debugger;
+
+            var form = obj.form;
+            var sortOption = form.sort_1.value;
+            var start = (form.start.value.length > 0) ? form.start.value : '';
+            var rows = (form.rows.value.length > 0) ? form.rows.value : '';
+            var sort;
+
+            console.log('rows', typeof rows);
+
+            switch (sortOption) {
+                case 'desc':
+                    sort = 'prev';
+                    break;
+                default:
+                    sort = 'next';
+                    break;
+            };
+
+            var options = {
+                'table': tableName,
+                'final': e_final,
+                'direct': sort,
+                'start': start,
+                'rows': rows,
+                'success': e_success
+            };
+
+            function e_success(arg) {
+                // debugger;
+
+                var cursor = arg.cursor;
+                arg.data;
+
+                if (arg.data == null) {
+                    arg.data = '';
+                }
+                arg.data += '<p>key(' + cursor.key + ') => ' +
+                    JSON.stringify(cursor.value) + '</p>';
+
+            };
+
+            function e_final(arg) {
+                debugger;
+
+                var data = arg.data;
+                var msg_1 = document.querySelector('#msg_1');
+                msg_1.innerHTML = data || '沒資料';
+            };
+
+            $indexedDBA.queryFun(options);
+        };
+
+        /**
+         * 依據(PK)取得資料量
+         *
+         * @return {[type]} [description]
+         */
+        function by_pk_getAllCount() {
+            var options = {
+                'table': tableName,
+                'final': e_final
+            };
+
+            function e_final(result, event) {
+                alert('共有幾筆資料:' + result);
+            }
+
+            $indexedDBA.numOfAllRows(options);
+        }
+        /* ================================================================== */
+
+        /**
+         * 調出所有資料，排序依照(adress)
+         *
+         */
+        function showAllData_orderBy_address(obj, e) {
+            e.preventDefault();
+            debugger;
+
+            var form = obj.form;
+            var sortOption = form.sort_1.value;
+            var start = form.start.value;
+            var rows = form.rows.value;
+            var sort;
+
+            switch (sortOption) {
+                case 'desc':
+                    sort = 'prev';
+                    break;
+                default:
+                    sort = 'next';
+                    break;
+            }
+
+            var options = {
+                'table': tableName,
+                'final': e_final,
+                'direct': sort,
+                'start': start,
+                'rows': rows,
+                'index': 'adressIndex'
+            };
+
+            function e_final(data, e) {
+                debugger;
+
+                var msg_1 = document.querySelector('#msg_1');
+                var htmlContent = '';
+
+                for (var i = 0; i < data.length; i++) {
+                    htmlContent += '<p>' + JSON.stringify(data[i]) + '</p>';
+                }
+
+                msg_1.innerHTML = htmlContent || '沒內容';
+            }
+
+            $indexedDBA.queryArray(options);
+        };
+
+        /**
+         * 依據(adressIndex)取得資料量
+         *
+         * @return {[type]} [description]
+         */
+        function by_adreesIndex_getAllCount() {
+            debugger;
+
+            var options = {
+                'table': tableName,
+                'index': 'adressIndex',
+                'final': e_final
+            };
+
+            function e_final(result, event) {
+                alert('共有幾筆資料:' + result);
+            }
+
+            $indexedDBA.numOfAllRows(options);
+        }
+        /* ================================================================== */
+        /**
+         * 查詢資料(adress)
+         *
+         */
+        function find_address(obj, e) {
+            e.preventDefault();
+            debugger;
+
+            var form = obj.form;
+            var keyWord = (form.keyWord.value.length > 0) ? form.keyWord.value : null;
+
+            if (!$indexedDBA.db) {
+                alert('尚未連接資料庫');
+            } else {
+                var options = {
+                    'table': tableName,
+                    'index': 'adressIndex',
+                    'range': {
+                        'only': keyWord
+                    },
+                    'final': e_final
+                };
+
+                function e_final(map, e) {
+                    var htmlContent = '';
+
+                    map.forEach(function(value, key) {
+                        htmlContent += '<p>(' + key + ')' + JSON.stringify(value) + '</p>';
+                    });
+
+                    var msg_1 = document.querySelector('#msg_1');
+                    msg_1.innerHTML = htmlContent;
+                };
+
+                $indexedDBA.queryArray(options);
+            }
+        };
+        /* ================================================================== */
+        /**
+         * 再次新增資料
+         */
+        function callAddData(obj, e) {
+            e.preventDefault();
+            if ($indexedDBA.db) {
+                addData(tableName);
+            } else {
+                alert('尚未連結');
+            }
+        };
+        /* ================================================================== */
+    </script>
+
+</head>
+
+<body>
+    <div class="action_container">
+        <h4>
+          資料庫名稱(hotel)表名稱(hotelData)
+        </h4>
+        <div class="action_item">
+            <form>
+                <h4>增加資料到資料庫</h4>
+                <p>
+                    <button onclick="callAddData(this, event);">adData</button>
+                </p>
+            </form>
+            <hr />
+            <form>
+                <p>
+                    依照(PK)排序
+                </p>
+                <p>
+                    <p>
+                        範圍
+                    </p>
+                    <p>
+                        form:<input type="text" name="start" /> length:
+                        <input type="text" name="rows" />
+                    </p>
+                </p>
+                <p>
+                    ASC:<input type="radio" name="sort_1" value="asc" checked="checked"> DESC:
+                    <input type="radio" name="sort_1" value="desc">
+                </p>
+                <p>
+                    <button onclick="showAllData_orderBy_pk(this, event);">根據(pk)查詢所有</button>
+                </p>
+            </form>
+            <p>
+                <button onclick="by_pk_getAllCount();">取得共有幾筆資料</button>
+            </p>
+            <hr />
+            <form>
+                <p>
+                    依照(adress)排序
+                </p>
+                <p>
+                    <p>
+                        範圍
+                    </p>
+                    <p>
+                        form:<input type="text" name="start" /> length:
+                        <input type="text" name="rows" />
+                    </p>
+                </p>
+                <p>
+                    ASC:
+                    <input type="radio" name="sort_1" value="asc" checked="checked"> DESC:
+                    <input type="radio" name="sort_1" value="desc">
+                </p>
+                <p>
+                    <button onclick="showAllData_orderBy_address(this, event);">根據(地址)查詢所有</button>
+                </p>
+            </form>
+            <p>
+                <button onclick="by_adreesIndex_getAllCount();">根據地址取得共有幾筆資料</button>
+            </p>
+            <hr />
+        </div>
+        <div class="action_item">
+            <form>
+                要查詢的(id):
+                <input type="text" name="id" />
+                <button onclick="findByPK(this, event);">fetchByPK</button>
+            </form>
+            <hr />
+            <form>
+                要查詢的(keyWord)
+                <input type="text" name="keyWord" />
+                <button onclick="find_address(this, event);">查詢(地址)</button>
+            </form>
+        </div>
+
+    </div>
+    <!-- ---------------------------------------- -->
+    <hr />
+    <div id="msg_1">
+
+    </div>
+</body>
+
+</html>
